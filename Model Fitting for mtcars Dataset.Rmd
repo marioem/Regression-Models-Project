@@ -1,10 +1,14 @@
 ---
 title: "Model Fitting for mtcars Dataset"
 author: "Mariusz Musiał"
-date: "27 grudnia 2015"
+date: "Dec. 27th 2015"
 output: pdf_document
 graphics: yes
 ---
+```{r, echo=FALSE}
+library(knitr)
+opts_chunk$set(echo = FALSE, fig.align='center', fig.height = 4.6, message=FALSE, error=FALSE, warning=FALSE)
+```
 
 # Synopsis
 
@@ -19,19 +23,280 @@ By "better" in question 1 it is understood "higner" in terms of numerical value 
 
 In order to arrive at conclusions allowing to answer those questions we first explore the available data in the dataset and their mutual relations. Then we proceed to evaluation of several possible linear models, assuming the simple additive form, i.e. without interactions between independent variables and without transformations of the variables other than possibly centering, normalization or inverses. Then the diagnostics are run on analyzed models to choose the most appropriate in the context of the questions. The chosen model is further diagnosed to evaluate its properties and validity.
 
-The main part of the report contains only text and tables, whereas the supporting figures are available in the Appendix. Links to appropriate figures are included in the main text for easier navigation. The original Rmd file used to generate this report is available in my github repository []. The approach to variable transformations in this report was inspired by the "Building Multiple Regression Models Interactively" paper by Henderson and Velleman [].
+The main part of the report contains only text and tables, whereas the supporting figures are available in the Appendix. Links to appropriate figures are included in the main text for easier navigation. The original Rmd file used to generate this report is available in my github repository [[1]](#github). The approach to variable transformations in this report was inspired by the "Building Multiple Regression Models Interactively" paper by Henderson and Velleman [[2]](#Henderson).
 
 # Dataset Exploration
 
-# Mode Fitting
+The **Motor Trend Car Dataset** (called `mtcars` from now on) consists of **`r nrow(mtcars)`** observations (corresponding to car models) of **`r ncol(mtcars)`** variables. The observed variables are:
+
+```{r}
+library(pander)
+pander(names(mtcars))
+```
+
+It is assumed that the reader is able to get the detailes description of each variable by using R help system (`?mtcars`).
+
+Useful summary of the data for our purposes is presented in [Figure 1](#Fig1). From this figure we see (upper panel) that the variables in the `mtcars` dataset can be divided into two groups:
+
+- continuous variables (`hp`, `wt`, `disp`, `drat`, `qsec` and `mpg`)
+- discrete variables (`carb`, `cyl`, `am`, `gear` and `vs`)
+
+For better interpretability of the results, we'll center and scale the continuous variables by substracting their respective means and dividing by standard deviations.
+
+```{r}
+rmpg <- cor(mtcars)[,1]
+```
+
+The lower panel of [Figure 1](#Fig1) depicts the correlation ellipses and smooth lines for the pairwise variable relations. For the purpose of the present report we are primarily interested in relation of `mpg` with the remaining variables. The presented ellipse plots indicate that `mpg` is particularly strongly inversly correlated with `wt` (r = `r round(rmpg["wt"],4)`), `cyl` (r = `r round(rmpg["cyl"],4)`), `disp` (r = `r round(rmpg["disp"],4)`) and `hp` (r = `r round(rmpg["hp"],4)`). There is also quite strong positive correlation between each pair of those 4 variables, what indicates that they are not mutually independent (what is quite logical as `hp`, `cyl` and `disp` should somehow be the result of the design decisions to achieve certain performance figures for a car with the resulting weight `wt`). These observations would need to be taken into account to avoid effects of multicollinearity when fitting the models.
+
+Looking at the smooth lines on [Figure 1](#Fig1) it can be seen that there is mostly non-linear relationship between `mpg` and the other variables, especially those strongly inversly correlated. As noted in [[2]](#Henderson), this suggests that for fitting a linear model with `mpg` as the dependent variable it would be better to fit to its inverse, `gpm` or gallon per mile. Therefore in the process of centering and normalizing the continuous variables we introduce a variable equivalent to `mpg` which is gallons per 100 miles, centered and normalized and we call it `gpm`.
+
+```{r}
+library(dplyr)
+mt <- mtcars
+mt <- mutate(mt, gpm = 100/mpg, wt = (wt-mean(wt))/sd(wt), hp = (hp-mean(hp))/sd(hp), disp = (disp-mean(disp))/sd(disp), drat = (drat-mean(drat))/sd(drat), qsec = (qsec-mean(qsec))/sd(qsec))
+mt <- mutate(mt, gpm = (gpm-mean(gpm))/sd(gpm))
+mt$mpg <- NULL
+```
+
+[Figure 2](#Fig2) shows the reationships of `gpm` with all but `am` remaining variables (we control for `am`). A few interesting characteristics are revealed in this plot. The relation of `gpm` with its higly correlated variables `cyl`, `disp`, `wt` looks quite linear with the exception of `hp` which still retained some non-linear dependency. Moreover, if we treat the `am` variable as a group status of our data, then `cyl`, `vs` and to a large extent also `qsec` and `carb` variables are unrelated to `am` variable.
+
+# Model Fitting
+
+The following strategy is assumed: first the trivial simple linear model with `am` as predictor is fitted. It is equivalent to calculating and testing significance of the difference of the group means. Couple of subsequent models are created using backward elimination procedure where in some models we take into account underlying physics governing the fuel consupmtion, and in consequence gpm/mpg figures (see [[2]](#Henderson)), that is preserving `wt` as the predictor will be preferred. Elimination of regressors is based on either p-value (removing the most insignificant predictor first) or on Variance Inflation Factor (VIF), removing predictor with highest VIF. Lastly a few models are build by tryimg to incrementally improve the original simple linear model by adding predictors. For all models Akaike Infomation Criterion and $R^2$ are used as the criteria to select the best model.
+
+***Trivial Model***
+
+```{r}
+fit0 <- lm(gpm ~ I(factor(am)), mt)
+fit0s <- summary(fit0)
+fit0ci <- confint(fit0)
+pander(fit0s$coef)
+pander(fit0ci)
+```
+
+This model is fit using `am` variable as the sole predictor. It is marked as **fit0**. As the `am` variable assumes only two values (0 - automatic transmission, 1 - manual transmission), obtained coefficients are interpreted as follows: for the automatic transmission the average gallons consumed per 100 miles driven are `r round(fit0s$coef[1,1],4)` above the average consumption for all the cars in the dataset. The average consumption for the cars with manual transmission is `r abs(round(fit0s$coef[2,1]*sd(100/mtcars$mpg),4))` (coefficient times standard deviation of unnormalized gpm) gallons per 100 miles lower the average consumption for the cars with automatic transmission. The p-value for the differene in means is statistically significant, so we can infer that for this particular dataset there is a difference in gpm (and mpg) between automatic and manual transmission with cars with manual transmission exhibiting better gpm/mpg figures. Second from the above tables shows the confidence intervals for the regression coefficients (mean for the automatic transmission and difference in means between automatic and manual transmission cars). For this model no diagnostic plots are presented as this case is trivial and equivalent to t-test of the sample means.
+
+***Backward elimination, p-value criterium, preserving `wt`***
+
+In this model we start with all independent variables as predictors and eliminate them one by one starting with the least significant variables as indicated by the variable's coefficient p-value, but preserving `wt` variable independently of the p-value it's coefficient might have during the process. At the end we arrive at the following model:
+
+**fit1**: $mpg = \beta_0 + \beta_1 disp + \beta_2 wt + \beta_3 carb$
+
+```{r}
+fit1 <- lm(gpm ~ ., mt)
+# summary(fit1)
+fit1 <- update(fit1, . ~ . - drat)
+# summary(fit1)
+fit1 <- update(fit1, . ~ . - vs)
+# summary(fit1)
+fit1 <- update(fit1, . ~ . - am)
+# summary(fit1)
+fit1 <- update(fit1, . ~ . - hp)
+# summary(fit1)
+fit1 <- update(fit1, . ~ . + hp - qsec)
+# summary(fit1)
+fit1 <- update(fit1, . ~ . - cyl)
+# summary(fit1)
+fit1 <- update(fit1, . ~ . - hp)
+# summary(fit1)
+fit1 <- update(fit1, . ~ . - gear)
+# summary(fit1)
+# # gpm ~ disp + wt + carb, all regressors significant, Adjusted R-squared:  0.838
+```
+
+***Backward elimination, VIF criterium, preserving `wt`***
+
+In this model we start with all independent variables as predictors and eliminate them one by one starting with the variable having highest VIF, but preserving `wt` variable independently of its VIF. At the end we arrive at the following model:
+
+**fit2**: $mpg = \beta_0 + \beta_1 wt + \beta_2 qsec$
+
+```{r, results='hide'}
+library(car)
+
+fit2 <- lm(gpm ~ ., mt)
+# summary(fit2)
+vif(fit2)
+fit2 <- update(fit2, . ~ . - disp)
+# summary(fit2)
+vif(fit2)
+fit2 <- update(fit2, . ~ . - cyl)
+# summary(fit2)
+vif(fit2) # VIF wt greater that VIF hp, but wt significant
+fit2 <- update(fit2, . ~ . - hp)
+# summary(fit2)
+vif(fit2)
+fit2 <- update(fit2, . ~ . - gear)
+# summary(fit2)
+vif(fit2)
+fit2 <- update(fit2, . ~ . - qsec)
+# summary(fit2)
+vif(fit2)
+fit2 <- update(fit2, . ~ . - am + qsec)
+# summary(fit2)
+vif(fit2)
+fit2 <- update(fit2, . ~ . - vs)
+# summary(fit2)
+vif(fit2)
+fit2 <- update(fit2, . ~ . - carb)
+# summary(fit2)
+vif(fit2)
+fit2 <- update(fit2, . ~ . - drat)
+# summary(fit2)
+vif(fit2)
+# gpm ~ wt + qsec, Adjusted R-squared:  0.8361
+```
+
+***Backward elimination, VIF criterium, not preserving `wt`***
+
+This process is similar to the previous one with the difference that the variable `wt` is allowed to be eliminated. This resulted in the following model:
+
+**fit3**: $mpg = \beta_0 + \beta_1 drat + \beta_2 carb$
+
+Please note, that this model is uniterpretable.
+
+```{r, results='hide'}
+fit3 <- lm(gpm ~ ., mt)
+# summary(fit3)
+vif(fit3)
+fit3 <- update(fit3, . ~ . - disp)
+# summary(fit3)
+vif(fit3)
+fit3 <- update(fit3, . ~ . - cyl)
+# summary(fit3)
+vif(fit3)
+fit3 <- update(fit3, . ~ . - wt)
+# summary(fit3)
+vif(fit3)
+fit3 <- update(fit3, . ~ . - hp)
+# summary(fit3)
+vif(fit3)
+fit3 <- update(fit3, . ~ . - am)
+# summary(fit3)
+vif(fit3)
+fit3 <- update(fit3, . ~ . - vs)
+# summary(fit3)
+vif(fit3)
+fit3 <- update(fit3, . ~ . - gear)
+# summary(fit3)
+vif(fit3)
+fit3 <- update(fit3, . ~ . - qsec)
+# summary(fit3)
+vif(fit3)
+# gpm ~ drat + carb, Adjusted R-squared:  0.6027
+```
+
+***Forward selection models with `am` as obligatory predictor***
+
+Following 3 models were selected for analysis by adding variables and performing ANOVA analysis of significance of added predictors, so that all are significant:
+
+**fit43**: $mpg = \beta_0 + \beta_1 am + \beta_2 wt + \beta_3 disp$
+
+**fit53**: $mpg = \beta_0 + \beta_1 am + \beta_2 wt + \beta_3 qsec$
+
+**fit62**: $mpg = \beta_0 + \beta_1 am + \beta_2 hp$
+
+```{r, results='hide'}
+fit41 <- lm(gpm ~ am, mt)
+summary(fit41)
+fit42 <- lm(gpm ~ am + wt, mt)
+summary(fit42)
+fit43 <- lm(gpm ~ am + wt + disp, mt)
+summary(fit43)
+
+anova(fit41, fit42, fit43)
+AIC(fit43) # 41.47653
+
+fit51 <- lm(gpm ~ am, mt)
+summary(fit51)
+fit52 <- lm(gpm ~ am + wt, mt)
+summary(fit52)
+fit53 <- lm(gpm ~ am + wt + qsec, mt)
+summary(fit53)
+
+anova(fit51, fit52, fit53)
+AIC(fit53) # 39.76899
+
+fit61 <- lm(gpm ~ am, mt)
+summary(fit61)
+fit62 <- lm(gpm ~ am + hp, mt)
+summary(fit62)
+
+anova(fit61, fit62)
+AIC(fit62) # 57.5678
+```
+
+The following table presents the AIC and $R^2$ values for all the models:
+
+```{r}
+
+crit <- AIC(fit0, fit1, fit2, fit3, fit43, fit53, fit62)
+crit$df <- NULL
+crit$Rsq <- numeric(7)
+crit$Rsq[1] <- summary(fit0)$adj.r.squared
+crit$Rsq[2] <- summary(fit1)$adj.r.squared
+crit$Rsq[3] <- summary(fit2)$adj.r.squared
+crit$Rsq[4] <- summary(fit3)$adj.r.squared
+crit$Rsq[5] <- summary(fit43)$adj.r.squared
+crit$Rsq[6] <- summary(fit53)$adj.r.squared
+crit$Rsq[7] <- summary(fit62)$adj.r.squared
+names(crit) <- c("AIC", "Adj. R-Sq")
+pander(crit)
+```
+
+From the above table it can be observed that the best model from those considered is **fit2** having the lowest AIC and one of the highest $R^2$ (`r round(100*summary(fit2)$adj.r.squared,0)`%). Model **fit1** has slightly higher $R^2$, but probably due to havig one regressor more. This result (**fit2** as best model) is consistent with findings in [[2]](#Henderson), where `qsec` can be treated as equivalent to car's overpower.
+
+From models including `am` as a predictor the best results presents **fit53** which is basically a modification of **fit2** by including `am`. We can conclude that in this case the inclusion of `am` doesn't spoil the best model too much, so `am` basically offers no explanatory value.
 
 # Results and Conclusions
 
+With reference to question 1, we can conclude that ***within the analysed dataset*** the cars with the manual transmission offer better mpg/gpm than those with automatic transmission. But we found no evidence in the data that this observation holds in general (compare models **fit2** and **fit53**).
+
+As far as question 2 is concerned, its equivalent version of gallons per 100 miles was quantified. To this end, cars with automatic transmission have, on average, higher gas consumption of `r abs(round(fit0s$coef[2,1]*sd(100/mtcars$mpg),4))` gallons per 100 miles.
+
 # References
 
-1. <a name="github"></a>
+1. <a name="github"></a> [https://github.com/marioem/Regression-Models-Project.git](https://github.com/marioem/Regression-Models-Project.git)
+2. <a name="Henderson"></a>Harold V. Henderson, Paul F. Velleman (1981). *Building Multiple Regression Models Interactively*. Biometrics, Vol. 37, No. 2. (Jun., 1981), pp. 391-411.
 
 # Appendix
 
-## Figures
+<a name="Fig1"></a>
+```{r}
+library(corrgram)
 
+corrgram(mtcars, order="HC", lower.panel=panel.ellipse,
+         upper.panel=panel.pts, text.panel=panel.txt,
+         diag.panel=panel.minmax, cex.labels = .9,
+         main="Figure 1. Motor Trend Car Data")
+```
+
+<a name="Fig2"></a>
+```{r}
+library(ggplot2)
+library(gridExtra)
+
+ivars <- names(mt)
+ivars <- ivars[-which(ivars == "am" | ivars == "gpm")]
+
+g <- list()
+
+for(i in seq_along(ivars)){
+    local({
+        i <- i
+        g[[i]] <<- ggplot(data = mt, aes(x=mt[,ivars[i]], y = gpm, color = factor(am))) + 
+            geom_point(size = 2, alpha = .6)
+        g[[i]] <<- g[[i]] + xlab(ivars[i]) + geom_smooth(method = "lm")
+        if(i > 1)
+            g[[i]] <<- g[[i]] + theme(legend.position="none")
+        else {
+            g[[i]] <<- g[[i]] + theme(legend.position=c(.35, .85), 
+                            legend.direction = "horizontal", 
+                            legend.background = element_rect(fill = "transparent"))
+            g[[i]] <<- g[[i]] + scale_color_discrete(name = "A/M")
+        }
+    })
+}
+
+do.call("grid.arrange", c(g, ncol=3, top = "Figure 2. GPM vs other variables controlling for AM"))
+```
