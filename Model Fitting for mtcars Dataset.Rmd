@@ -1,0 +1,37 @@
+---
+title: "Model Fitting for mtcars Dataset"
+author: "Mariusz Musiał"
+date: "27 grudnia 2015"
+output: pdf_document
+graphics: yes
+---
+
+# Synopsis
+
+# Introduction
+
+The present report is focused on analysis of the mtcars dataset with the aim to provide answers to two questions:
+
+1. Is an automatic or manual transmission better for MPG
+2. Quantify the MPG difference between automatic and manual transmissions
+
+By "better" in question 1 it is understood "higner" in terms of numerical value of MPG (miles per gallon).
+
+In order to arrive at conclusions allowing to answer those questions we first explore the available data in the dataset and their mutual relations. Then we proceed to evaluation of several possible linear models, assuming the simple additive form, i.e. without interactions between independent variables and without transformations of the variables other than possibly centering, normalization or inverses. Then the diagnostics are run on analyzed models to choose the most appropriate in the context of the questions. The chosen model is further diagnosed to evaluate its properties and validity.
+
+The main part of the report contains only text and tables, whereas the supporting figures are available in the Appendix. Links to appropriate figures are included in the main text for easier navigation. The original Rmd file used to generate this report is available in my github repository []. The approach to variable transformations in this report was inspired by the "Building Multiple Regression Models Interactively" paper by Henderson and Velleman [].
+
+# Dataset Exploration
+
+# Mode Fitting
+
+# Results and Conclusions
+
+# References
+
+1. <a name="github"></a>
+
+# Appendix
+
+## Figures
+
