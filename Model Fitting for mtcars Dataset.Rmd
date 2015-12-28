@@ -1,8 +1,7 @@
 ---
 title: "Model Fitting for mtcars Dataset"
-author: "Mariusz Musiał"
-date: "Dec. 27th 2015"
 output: pdf_document
+geometry: margin=.7cm
 graphics: yes
 ---
 ```{r, echo=FALSE}
@@ -10,9 +9,7 @@ library(knitr)
 opts_chunk$set(echo = FALSE, fig.align='center', fig.height = 4.6, message=FALSE, error=FALSE, warning=FALSE)
 ```
 
-# Synopsis
-
-# Introduction
+# Executive summary
 
 The present report is focused on analysis of the mtcars dataset with the aim to provide answers to two questions:
 
@@ -21,9 +18,7 @@ The present report is focused on analysis of the mtcars dataset with the aim to 
 
 By "better" in question 1 it is understood "higner" in terms of numerical value of MPG (miles per gallon).
 
-In order to arrive at conclusions allowing to answer those questions we first explore the available data in the dataset and their mutual relations. Then we proceed to evaluation of several possible linear models, assuming the simple additive form, i.e. without interactions between independent variables and without transformations of the variables other than possibly centering, normalization or inverses. Then the diagnostics are run on analyzed models to choose the most appropriate in the context of the questions. The chosen model is further diagnosed to evaluate its properties and validity.
-
-The main part of the report contains only text and tables, whereas the supporting figures are available in the Appendix. Links to appropriate figures are included in the main text for easier navigation. The original Rmd file used to generate this report is available in my github repository [[1]](#github). The approach to variable transformations in this report was inspired by the "Building Multiple Regression Models Interactively" paper by Henderson and Velleman [[2]](#Henderson).
+The main part of the report contains only text and tables, whereas the supporting figures are available in the Appendix.The original Rmd file used to generate this report is available in my github repository [[1]](#github). The approach to variable transformations in this report was inspired by the "Building Multiple Regression Models Interactively" paper by Henderson and Velleman [[2]](#Henderson).
 
 # Dataset Exploration
 
@@ -34,22 +29,15 @@ library(pander)
 pander(names(mtcars))
 ```
 
-It is assumed that the reader is able to get the detailes description of each variable by using R help system (`?mtcars`).
-
-Useful summary of the data for our purposes is presented in [Figure 1](#Fig1). From this figure we see (upper panel) that the variables in the `mtcars` dataset can be divided into two groups:
-
-- continuous variables (`hp`, `wt`, `disp`, `drat`, `qsec` and `mpg`)
-- discrete variables (`carb`, `cyl`, `am`, `gear` and `vs`)
-
-For better interpretability of the results, we'll center and scale the continuous variables by substracting their respective means and dividing by standard deviations.
+Useful summary of the data for our purposes is presented in [Figure 1](#Fig1). From this figure we see (upper panel) that the variables in the `mtcars` dataset can be divided into two groups: continuous and discrete. For better interpretability of the results, we'll center and scale the continuous variables by substracting their respective means and dividing by standard deviations.
 
 ```{r}
 rmpg <- cor(mtcars)[,1]
 ```
 
-The lower panel of [Figure 1](#Fig1) depicts the correlation ellipses and smooth lines for the pairwise variable relations. For the purpose of the present report we are primarily interested in relation of `mpg` with the remaining variables. The presented ellipse plots indicate that `mpg` is particularly strongly inversly correlated with `wt` (r = `r round(rmpg["wt"],4)`), `cyl` (r = `r round(rmpg["cyl"],4)`), `disp` (r = `r round(rmpg["disp"],4)`) and `hp` (r = `r round(rmpg["hp"],4)`). There is also quite strong positive correlation between each pair of those 4 variables, what indicates that they are not mutually independent (what is quite logical as `hp`, `cyl` and `disp` should somehow be the result of the design decisions to achieve certain performance figures for a car with the resulting weight `wt`). These observations would need to be taken into account to avoid effects of multicollinearity when fitting the models.
+The lower panel of [Figure 1](#Fig1) depicts the correlation ellipses and smooth lines for the pairwise variable relations. For the purpose of the present report we are primarily interested in relation of `mpg` with the remaining variables. Ellipse plots indicate that `mpg` is particularly strongly inversly correlated with `wt` (r = `r round(rmpg["wt"],4)`), `cyl` (r = `r round(rmpg["cyl"],4)`), `disp` (r = `r round(rmpg["disp"],4)`) and `hp` (r = `r round(rmpg["hp"],4)`). There is also quite strong positive correlation between each pair of those 4 variables, what indicates that they are not mutually independent. These observations would need to be taken into account to avoid effects of multicollinearity when fitting the models.
 
-Looking at the smooth lines on [Figure 1](#Fig1) it can be seen that there is mostly non-linear relationship between `mpg` and the other variables, especially those strongly inversly correlated. As noted in [[2]](#Henderson), this suggests that for fitting a linear model with `mpg` as the dependent variable it would be better to fit to its inverse, `gpm` or gallon per mile. Therefore in the process of centering and normalizing the continuous variables we introduce a variable equivalent to `mpg` which is gallons per 100 miles, centered and normalized and we call it `gpm`.
+Looking at the smooth lines on [Figure 1](#Fig1) it can be seen that there is mostly non-linear relationship between `mpg` and the other variables, especially those strongly inversly correlated. As noted in [[2]](#Henderson), this suggests that for fitting a linear model with `mpg` as the dependent variable it would be better to fit to its inverse, `gpm` or gallon per mile. We introduce therefore a variable equivalent to `mpg` which is gallons per 100 miles, centered and normalized and we call it `gpm`.
 
 ```{r}
 library(dplyr)
@@ -59,11 +47,11 @@ mt <- mutate(mt, gpm = (gpm-mean(gpm))/sd(gpm))
 mt$mpg <- NULL
 ```
 
-[Figure 2](#Fig2) shows the reationships of `gpm` with all but `am` remaining variables (we control for `am`). A few interesting characteristics are revealed in this plot. The relation of `gpm` with its higly correlated variables `cyl`, `disp`, `wt` looks quite linear with the exception of `hp` which still retained some non-linear dependency. Moreover, if we treat the `am` variable as a group status of our data, then `cyl`, `vs` and to a large extent also `qsec` and `carb` variables are unrelated to `am` variable.
+[Figure 2](#Fig2) shows the reationships of `gpm` with all remaining variables but `am` (we control for `am`). The relation of `gpm` with its higly correlated variables `cyl`, `disp`, `wt` looks quite linear with the exception of `hp` which still retained some non-linear dependency.
 
 # Model Fitting
 
-The following strategy is assumed: first the trivial simple linear model with `am` as predictor is fitted. It is equivalent to calculating and testing significance of the difference of the group means. Couple of subsequent models are created using backward elimination procedure where in some models we take into account underlying physics governing the fuel consupmtion, and in consequence gpm/mpg figures (see [[2]](#Henderson)), that is preserving `wt` as the predictor will be preferred. Elimination of regressors is based on either p-value (removing the most insignificant predictor first) or on Variance Inflation Factor (VIF), removing predictor with highest VIF. Lastly a few models are build by tryimg to incrementally improve the original simple linear model by adding predictors. For all models Akaike Infomation Criterion and $R^2$ are used as the criteria to select the best model.
+First the trivial simple linear model with `am` as predictor is fitted. It is equivalent to calculating and testing significance of the difference of the group means. Subsequent models are created using backward elimination procedure where in some models we take into account underlying physics governing the fuel consupmtion (see [[2]](#Henderson)), that is preserving `wt` as the predictor will be preferred. Lastly a few models are build by trying to incrementally improve the original simple linear model by adding new predictors. For all models Akaike Infomation Criterion and $R^2$ are used as the criteria to select the best model.
 
 ***Trivial Model***
 
@@ -71,11 +59,16 @@ The following strategy is assumed: first the trivial simple linear model with `a
 fit0 <- lm(gpm ~ I(factor(am)), mt)
 fit0s <- summary(fit0)
 fit0ci <- confint(fit0)
-pander(fit0s$coef)
-pander(fit0ci)
+tbl <- as.data.frame(fit0s$coef)
+tbl$ci25 <- numeric(2)
+tbl$ci95 <- numeric(2)
+tbl$ci25 <- fit0ci[,1]
+tbl$ci95 <- fit0ci[,2]
+names(tbl) <- c("Estimate", "Std. Error", "t value", "Pr(>|t|)", "CI 2.5%", "CI 97.5%")
+kable(tbl)
 ```
 
-This model is fit using `am` variable as the sole predictor. It is marked as **fit0**. As the `am` variable assumes only two values (0 - automatic transmission, 1 - manual transmission), obtained coefficients are interpreted as follows: for the automatic transmission the average gallons consumed per 100 miles driven are `r round(fit0s$coef[1,1],4)` above the average consumption for all the cars in the dataset. The average consumption for the cars with manual transmission is `r abs(round(fit0s$coef[2,1]*sd(100/mtcars$mpg),4))` (coefficient times standard deviation of unnormalized gpm) gallons per 100 miles lower the average consumption for the cars with automatic transmission. The p-value for the differene in means is statistically significant, so we can infer that for this particular dataset there is a difference in gpm (and mpg) between automatic and manual transmission with cars with manual transmission exhibiting better gpm/mpg figures. Second from the above tables shows the confidence intervals for the regression coefficients (mean for the automatic transmission and difference in means between automatic and manual transmission cars). For this model no diagnostic plots are presented as this case is trivial and equivalent to t-test of the sample means.
+This model (**fit0**) is fit using `am` variable as the sole predictor. As the `am` variable assumes only two values (0 - automatic transmission, 1 - manual transmission), obtained coefficients are interpreted as follows: for the automatic transmission the average gallons consumed per 100 miles driven are `r round(fit0s$coef[1,1],4)` SDs above the average consumption for all the cars in the dataset. The average consumption for the cars with manual transmission is `r abs(round(fit0s$coef[2,1],4))` SDs of overall gallons per 100 miles lower of the average consumption for the cars with automatic transmission. The p-value for the differece in means is statistically significant, so we can infer that for this particular dataset there is a difference in gpm (and mpg) between automatic and manual transmission. For this model no diagnostic plots are presented as this case is trivial and equivalent to t-test of the sample means. Uncertainty of the model coefficients is quantified by the provided Confidence Intervals.
 
 ***Backward elimination, p-value criterium, preserving `wt`***
 
@@ -248,16 +241,13 @@ From the above table it can be observed that the best model from those considere
 
 From models including `am` as a predictor the best results presents **fit53** which is basically a modification of **fit2** by including `am`. We can conclude that in this case the inclusion of `am` doesn't spoil the best model too much, so `am` basically offers no explanatory value.
 
+Diagnostic printouts for **fit2** model are presented in Figure 3. It can be seen that there are some outlying values (principally rows 15 and 17), removing of which could potentially improve the model, but other than that the model has acceptable diagnostics.
+
 # Results and Conclusions
 
 With reference to question 1, we can conclude that ***within the analysed dataset*** the cars with the manual transmission offer better mpg/gpm than those with automatic transmission. But we found no evidence in the data that this observation holds in general (compare models **fit2** and **fit53**).
 
-As far as question 2 is concerned, its equivalent version of gallons per 100 miles was quantified. To this end, cars with automatic transmission have, on average, higher gas consumption of `r abs(round(fit0s$coef[2,1]*sd(100/mtcars$mpg),4))` gallons per 100 miles.
-
-# References
-
-1. <a name="github"></a> [https://github.com/marioem/Regression-Models-Project.git](https://github.com/marioem/Regression-Models-Project.git)
-2. <a name="Henderson"></a>Harold V. Henderson, Paul F. Velleman (1981). *Building Multiple Regression Models Interactively*. Biometrics, Vol. 37, No. 2. (Jun., 1981), pp. 391-411.
+As far as question 2 is concerned, its equivalent version of gallons per 100 miles was quantified. To this end, cars with automatic transmission have, on average, higher gas consumption of `r abs(round(fit0s$coef[2,1]*sd(100/mtcars$mpg),4))` gallons per 100 miles. See also discussion of **fit0** model.
 
 # Appendix
 
@@ -300,3 +290,15 @@ for(i in seq_along(ivars)){
 
 do.call("grid.arrange", c(g, ncol=3, top = "Figure 2. GPM vs other variables controlling for AM"))
 ```
+
+```{r}
+oldpar <- par(mfrow=c(2,2), mar=c(4,4,2,1), oma=c(0,0,4,1))
+plot(fit2)
+mtext("Figure 3. Diagnostic plots for model fit2", side=3, line=2, outer=TRUE, cex=1, font=2)
+```
+
+## References
+
+1. <a name="github"></a> [https://github.com/marioem/Regression-Models-Project.git](https://github.com/marioem/Regression-Models-Project.git)
+2. <a name="Henderson"></a>Harold V. Henderson, Paul F. Velleman (1981). *Building Multiple Regression Models Interactively*. Biometrics, Vol. 37, No. 2. (Jun., 1981), pp. 391-411.
+
