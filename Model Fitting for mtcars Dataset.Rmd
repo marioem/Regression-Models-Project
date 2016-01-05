@@ -74,7 +74,7 @@ This model (**fit0**) is fit using `am` variable as the sole predictor. As the `
 
 In this model we start with all independent variables as predictors and eliminate them one by one starting with the least significant variables as indicated by the variable's coefficient p-value, but preserving `wt` variable independently of the p-value it's coefficient might have during the process. At the end we arrive at the following model:
 
-**fit1**: $mpg = \beta_0 + \beta_1 disp + \beta_2 wt + \beta_3 carb$
+**fit1**: $gpm = \beta_0 + \beta_1 disp + \beta_2 wt + \beta_3 carb$
 
 ```{r}
 fit1 <- lm(gpm ~ ., mt)
@@ -102,7 +102,7 @@ fit1 <- update(fit1, . ~ . - gear)
 
 In this model we start with all independent variables as predictors and eliminate them one by one starting with the variable having highest VIF, but preserving `wt` variable independently of its VIF. At the end we arrive at the following model:
 
-**fit2**: $mpg = \beta_0 + \beta_1 wt + \beta_2 qsec$
+**fit2**: $gpm = \beta_0 + \beta_1 wt + \beta_2 qsec$
 
 ```{r, results='hide'}
 library(car)
@@ -144,7 +144,7 @@ vif(fit2)
 
 This process is similar to the previous one with the difference that the variable `wt` is allowed to be eliminated. This resulted in the following model:
 
-**fit3**: $mpg = \beta_0 + \beta_1 drat + \beta_2 carb$
+**fit3**: $gpm = \beta_0 + \beta_1 drat + \beta_2 carb$
 
 Please note, that this model is uniterpretable.
 
@@ -183,11 +183,11 @@ vif(fit3)
 
 Following 3 models were selected for analysis by adding variables and performing ANOVA analysis of significance of added predictors, so that all are significant:
 
-**fit43**: $mpg = \beta_0 + \beta_1 am + \beta_2 wt + \beta_3 disp$
+**fit43**: $gpm = \beta_0 + \beta_1 am + \beta_2 wt + \beta_3 disp$
 
-**fit53**: $mpg = \beta_0 + \beta_1 am + \beta_2 wt + \beta_3 qsec$
+**fit53**: $gpm = \beta_0 + \beta_1 am + \beta_2 wt + \beta_3 qsec$
 
-**fit62**: $mpg = \beta_0 + \beta_1 am + \beta_2 hp$
+**fit62**: $gpm = \beta_0 + \beta_1 am + \beta_2 hp$
 
 ```{r, results='hide'}
 fit41 <- lm(gpm ~ am, mt)

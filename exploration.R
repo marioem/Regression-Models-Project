@@ -281,5 +281,34 @@ AIC(fit62) # 57.5678
 
 AIC(fit0, fit1, fit2, fit3, fit43, fit53, fit62)
 
+# Other models, post-submission exploration
 
+fita <- lm(mpg ~ I(1/wt)+qsec+am, mtcars)
+fitb <- lm(mpg ~ I(1/wt)+qsec, mtcars)
+fitc <- lm(mpg ~ I(log(wt))+I(wt/hp), mtcars)
+fitd <- lm(mpg ~ I(log(wt)), mtcars)
+fite <- lm(mpg ~ I(1/wt)+I(hp/wt), mtcars)
+fitf <- lm(mpg ~ I(exp(-wt/2))+I(wt/hp), mtcars)
+fitg <- lm(I(1/mpg) ~ wt + hp:wt, mtcars)
+fith <- lm(I(1/mpg) ~ wt + I(hp/wt), mtcars)
+        
+summary(fita)
+summary(fitb)
+summary(fitc)
+summary(fitd)
+summary(fite)
+summary(fitf)
+summary(fitg)
+summary(fith)
+
+AIC(fita, fitb, fitc, fitd, fite, fitf, fitg, fith)
+
+shapiro.test(resid((fita)))$p.value
+shapiro.test(resid((fitb)))$p.value
+shapiro.test(resid((fitc)))$p.value
+shapiro.test(resid((fitd)))$p.value
+shapiro.test(resid((fite)))$p.value
+shapiro.test(resid((fitf)))$p.value
+shapiro.test(resid((fitg)))$p.value
+shapiro.test(resid((fith)))$p.value
 
